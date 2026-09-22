@@ -5,7 +5,9 @@
 
 ## 분석 방식
 
-`librosa.pyin()` 기반 피치 추출을 사용합니다. (참고: 처음엔 CREPE(딥러닝 모델)를 쓰려 했으나, Windows 환경에서 패키징 문제로 설치가 안 되어 librosa의 pYIN으로 대체했습니다. 따라서 이 부분은 AI 모델로 구현하지 않았습니다.)
+`crepe`(CNN 기반 딥러닝 피치 추정)를 사용합니다.
+(이전 버전은 Windows 환경에서 설치 문제로 `pYIN`을 사용했으나,
+`setuptools<81` + `wheel` 설치 후 `--no-build-isolation` 옵션으로 CREPE 설치 문제를 해결하여 교체함.
 
 ## 요구사항
 
