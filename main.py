@@ -1,5 +1,6 @@
 import io
 import librosa
+import crepe
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
@@ -20,26 +21,27 @@ def convert_to_wav(upload_bytes: bytes) -> str:
     return temp_path
 
 
-def extract_pitch_range(wav_path):
-    y, sr = librosa.load(wav_path)
+import crepe
 
-    f0, voiced_flag, voiced_probs = librosa.pyin(
-        y,
-        fmin=librosa.note_to_hz('C2'),
-        fmax=librosa.note_to_hz('C6'),
-        sr=sr
+def extract_pitch_range(wav_path):
+    y, sr = librosa.load(wav_path, sr=16000)
+
+    time_arr, frequency, confidence, activation = crepe.predict(
+        y, sr, viterbi=True, verbose=0
     )
 
-    f0_no_nan = f0[~np.isnan(f0)]
-    voiced_probs_no_nan = voiced_probs[~np.isnan(f0)]
-    f0_clean = f0_no_nan[voiced_probs_no_nan > 0.8]
+    fmin = librosa.note_to_hz('C2')
+    fmax = librosa.note_to_hz('C6')
+    range_mask = (frequency >= fmin) & (frequency <= fmax)
+    conf_mask = confidence > 0.9
+    f0_clean = frequency[range_mask & conf_mask]
 
     if len(f0_clean) == 0:
         raise ValueError("유성음 구간을 찾지 못했습니다")
 
-    f0_min_hz = np.min(f0_clean)
-    f0_max_hz = np.max(f0_clean)
-    stable_score = float(np.mean(voiced_probs_no_nan[voiced_probs_no_nan > 0.8]))
+    f0_min_hz = float(np.min(f0_clean))
+    f0_max_hz = float(np.max(f0_clean))
+    stable_score = float(np.mean(confidence[range_mask & conf_mask]))
 
     return f0_min_hz, f0_max_hz, stable_score
 
