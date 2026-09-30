@@ -30,6 +30,20 @@ def extract_pitch_range(wav_path):
     # 1) 앞뒤 무음/저음량 구간 제거 (녹음 시작·끝의 침묵, 클릭 노이즈 컷)
     y, _ = librosa.effects.trim(y, top_db=25)
 
+    # 1.5) 음량(라우드니스) 체크 — 마이크에 직접 대고 말한 소리는 스피커로 재생되는
+    # 배경음(노래/영상)보다 대체로 훨씬 크게 녹음됨. 트림 후에도 평균 음량이 너무 작으면
+    # "선명하게 들리긴 하지만 내 목소리가 아니라 배경에서 재생 중인 다른 사람 목소리일
+    # 가능성"으로 보고 거부한다. (피치만으로는 "누구 목소리인지" 구분이 안 되기 때문에,
+    # 근접 마이크 특유의 큰 음량을 대리 지표로 쓰는 것 — 완벽하진 않지만 실질적으로 효과적)
+    rms = librosa.feature.rms(y=y)[0]
+    avg_dbfs = 20 * np.log10(np.mean(rms) + 1e-9)
+    MIN_DBFS = -30.0
+    if avg_dbfs < MIN_DBFS:
+        raise ValueError(
+            f"음성이 너무 작게 녹음되었습니다 (평균 {avg_dbfs:.1f}dB). "
+            "마이크에 더 가까이서 또렷하게 말씀해주세요"
+        )
+
     time_arr, frequency, confidence, activation = crepe.predict(
         y, sr, viterbi=True, verbose=0
     )
