@@ -37,8 +37,8 @@ def extract_pitch_range(wav_path):
     if len(f0_clean) == 0:
         raise ValueError("유성음 구간을 찾지 못했습니다")
 
-    f0_min_hz = np.min(f0_clean)
-    f0_max_hz = np.max(f0_clean)
+    f0_min_hz = np.percentile(f0_clean, 5)
+    f0_max_hz = np.percentile(f0_clean, 95)
     stable_score = float(np.mean(voiced_probs_no_nan[voiced_probs_no_nan > 0.8]))
 
     return f0_min_hz, f0_max_hz, stable_score
