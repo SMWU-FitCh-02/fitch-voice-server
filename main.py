@@ -1,19 +1,81 @@
+import hashlib
 import io
+import os
+
 import librosa
 import crepe
 import numpy as np
+import pyrubberband as pyrb
+import requests
+import soundfile as sf
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from pydub import AudioSegment
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class VoiceAnalysisResult(BaseModel):
     minNote: int
     maxNote: int
     stableScore: float
 
+KEY_ADJUST_CACHE_DIR = "key_adjust_cache"
+os.makedirs(KEY_ADJUST_CACHE_DIR, exist_ok=True)
 
+
+def _cache_path(preview_url: str, semitones: int) -> str:
+    key = hashlib.sha1(f"{preview_url}::{semitones}".encode()).hexdigest()
+    return os.path.join(KEY_ADJUST_CACHE_DIR, f"{key}.wav")
+
+
+@app.get("/voice/key-adjust")
+def key_adjust(previewUrl: str, semitones: int):
+    if semitones == 0:
+        raise HTTPException(status_code=400, detail="semitones가 0이면 조정할 필요가 없어요.")
+    if abs(semitones) > 24:
+        raise HTTPException(status_code=400, detail="조정 범위가 너무 커요 (최대 ±24반음).")
+
+    out_path = _cache_path(previewUrl, semitones)
+    if os.path.exists(out_path):
+        return FileResponse(out_path, media_type="audio/wav")
+
+    try:
+        resp = requests.get(previewUrl, timeout=15)
+        resp.raise_for_status()
+    except requests.RequestException:
+        raise HTTPException(status_code=502, detail="미리듣기 음원을 가져오지 못했어요.")
+
+    try:
+        audio = AudioSegment.from_file(io.BytesIO(resp.content))  # pydub(ffmpeg) — m4a/aac도 지원
+        sr = audio.frame_rate
+        channels = audio.channels
+
+        samples = np.array(audio.get_array_of_samples())
+        samples = samples.reshape((-1, channels)) if channels > 1 else samples.reshape((-1, 1))
+        max_val = float(1 << (8 * audio.sample_width - 1))
+        y = samples.astype(np.float32) / max_val  # 정수 PCM -> -1~1 float로 정규화
+
+        # --fine(R3 엔진) + --formant(포먼트 보정) — 기본 R2 엔진보다 느리지만
+        # 음색 유지가 훨씬 잘 됨. 결과는 _cache_path로 캐싱되므로 같은 조합은
+        # 다음부터 즉시 응답됨.
+        shifted = pyrb.pitch_shift(
+            y, sr, n_steps=semitones, rbargs={"--formant": "", "--fine": ""}
+        )
+
+        sf.write(out_path, shifted, sr, format="WAV")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"키 조정 처리 중 오류: {e}")
+
+    return FileResponse(out_path, media_type="audio/wav")
 def convert_to_wav(upload_bytes: bytes) -> str:
     audio = AudioSegment.from_file(io.BytesIO(upload_bytes))
     audio = audio.set_channels(1)  # 스테레오로 들어오면 다운믹스 위상 상쇄로 노이즈가 늘 수 있어 모노로 고정
