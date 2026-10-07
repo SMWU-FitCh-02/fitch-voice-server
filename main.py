@@ -138,11 +138,11 @@ def _load_yamnet():
     print(f"[yamnet] 로드 완료 (사람 목소리 클래스 {len(_yam_voice_idx)}개)", flush=True)
 
 
-try:
-    _load_yamnet()
-except Exception as _e:
-    _yam = None
-    print(f"[yamnet] 불러오기 실패, 건너뜁니다: {_e}", flush=True)
+#try:
+#    _load_yamnet()
+#except Exception as _e:
+#    _yam = None
+#    print(f"[yamnet] 불러오기 실패, 건너뜁니다: {_e}", flush=True)
 
 
 def _yamnet_check(y, sr):
@@ -235,16 +235,18 @@ def extract_pitch_range(wav_path):
             "마이크에 더 가까이서 또렷하게 말씀해주세요"
         )
 
-    _t1 = time.time()
-    _ratio = _yamnet_check(y, sr)
-    print(f"[timing] yamnet={time.time() - _t1:.1f}s", flush=True)
+#    _t1 = time.time()
+#   _ratio = _yamnet_check(y, sr)
+#    print(f"[timing] yamnet={time.time() - _t1:.1f}s", flush=True)
+
     y = _compact_voiced(y, sr)
     _t2 = time.time()
-    if YAMNET_ENFORCE and _ratio is not None and _ratio < YAMNET_MIN_VOICE_RATIO:
-        raise ValueError(
-            "사람 목소리로 보이는 소리를 충분히 찾지 못했습니다. "
-            "조용한 곳에서 마이크에 가까이 대고 다시 시도해주세요"
-        )
+
+#    if YAMNET_ENFORCE and _ratio is not None and _ratio < YAMNET_MIN_VOICE_RATIO:
+#        raise ValueError(
+#            "사람 목소리로 보이는 소리를 충분히 찾지 못했습니다. "
+#            "조용한 곳에서 마이크에 가까이 대고 다시 시도해주세요"
+#        )
 
     time_arr, frequency, confidence, activation = crepe.predict(
         y, sr, viterbi=False, verbose=0, model_capacity=CREPE_CAPACITY, step_size=40
