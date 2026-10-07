@@ -2,3 +2,9 @@ venv/
 __pycache__/
 *.pyc
 temp_recording.wav
+main.py.bak*
+*.log
+*_patch.py
+test.wav
+key_adjust_cache/
+yamnet.tflite
